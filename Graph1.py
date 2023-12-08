@@ -1,24 +1,30 @@
+## importa bibliotecas úteis para o sistema
 import streamlit as st
 import pandas as pd
 import altair as alt
 import numpy as np
 
+##definição da função para uma das abas da página principal, nesta função optamos por calcular médias de tempo de internação por infecções causadas por microorganismos
+##as médias são dadas pelas datas de admissão e datas de alta, desconsiderando internações que não possuem datas de alta, mas optamos por manter na visualização internações
+##menores do que 1 dia, que são visualizadas como 0 nos gráficos e dataframe.
 def graph1():
     st.header("Tempo Médio de Internação por Microorganismo")
-    
+
+    ##separação das colunas para melhor visualização da página
     col1, col2, col3 = st.columns([1, 1, 2])
     
-    # Carregar os dados do CSV
+    ##carrega os dados do CSV
     url = "https://raw.githubusercontent.com/AndersonEduardo/pbl-2023/main/sample_data_clean.csv"
     df = pd.read_csv(url)
-    
+
+    ##converte os valores de data e hora do dataset para valores de interpretação facilitada
     df['dh_admissao_paciente'] = pd.to_datetime(df['dh_admissao_paciente'])
     df['dh_alta_paciente'] = pd.to_datetime(df['dh_alta_paciente'])
     
-    # Botões para seleção de período
+    ##botões para seleção de período
     periodo_opcao = col1.radio("4- Selecione o período:", ["30 dias", "90 dias", "6 meses", "1 ano", "Período completo"])
     
-    # Calcular o período correspondente
+    ##calcula o período correspondente aos botões citados
     if periodo_opcao == "30 dias":
         data_maxima = df['dh_admissao_paciente'].max().date()
         data_inicial = data_maxima - pd.DateOffset(days=30)
@@ -35,25 +41,27 @@ def graph1():
         data_inicial = df['dh_admissao_paciente'].min().date()
         data_maxima = df['dh_admissao_paciente'].max().date()
     
-    # Adicionar filtro de período
+    ##adiciona filtro de período personalizado
     filtro_periodo = col1.date_input('4- Selecione o período:', [data_inicial, data_maxima])
     
-    # Converter para numpy.datetime64
+    ##converte os filtros de período para numpy.datetime64, para posterior ajuste de valores de média em gráficos
     filtro_periodo = [np.datetime64(date) for date in filtro_periodo]
-    
+
+    ##caixa de multiseleção para selecionar os organismos a serem analisados
     microorganismos_selecionados = col2.multiselect('4- Selecione os microorganismos:', df['cd_sigla_microorganismo'].unique())
     
-    # Calcular o tempo de internação em dias
+    ##calcula o tempo de internação em dias
     df['tempo_internacao_dias'] = (df['dh_alta_paciente'] - df['dh_admissao_paciente']).dt.days
     
-    # Aplicar os filtros
+    ##aplica os filtros desejados pelo usuário
     df_filtrado = df[(df['dh_admissao_paciente'] >= filtro_periodo[0]) & (df['dh_admissao_paciente'] <= filtro_periodo[1])]
     if microorganismos_selecionados:
         df_filtrado = df_filtrado[df_filtrado['cd_sigla_microorganismo'].isin(microorganismos_selecionados)]
     
-    # Verificar se há dados para o período selecionado
+    ##verifica se há dados para o período selecionado
     if not df_filtrado.empty:
-        # Criar gráfico para o período selecionado usando Altair
+        
+        #cria um gráfico para o período selecionado usando a biblioteca Altair
         chart = alt.Chart(df_filtrado).mark_line().encode(
             x=alt.X('dh_admissao_paciente:T', title='Data de Admissão'),
             y=alt.Y('tempo_internacao_dias:Q', title='Média Tempo de Internação'),
@@ -65,12 +73,13 @@ def graph1():
     
         col3.altair_chart(chart, use_container_width=True)
     
-        # Exibir resumo no DataFrame abaixo do gráfico
+        ##exibe um pequeno dataframe que sintetiza as informações obtidas pelo gráfico
         resumo_microorganismo = df_filtrado.groupby('cd_sigla_microorganismo').agg(
             media_tempo_internacao=pd.NamedAgg(column='tempo_internacao_dias', aggfunc='mean'),
             total_admissoes=pd.NamedAgg(column='tempo_internacao_dias', aggfunc='count')
         ).reset_index()
-    
+
+        ##muda o nome das colunas no dataframe para melhor visualização
         resumo_microorganismo = resumo_microorganismo.rename(columns={
             'cd_sigla_microorganismo': 'Microorganismo',
             'media_tempo_internacao': 'Média Tempo Internação',
@@ -79,6 +88,6 @@ def graph1():
     
         col3.dataframe(resumo_microorganismo, use_container_width=True, hide_index=True)
     
-        # Adicionar informações sobre os filtros selecionados
+        ##informações sobre os filtros selecionados
         st.write(f"Microorganismos: {', '.join(microorganismos_selecionados) if microorganismos_selecionados else 'Todos'}")
         st.write(f"Período: {filtro_periodo[0]} a {filtro_periodo[1]}")
