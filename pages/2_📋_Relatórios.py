@@ -1,10 +1,10 @@
-# Importa bibliotecas e funções úteis para o programa
+##importa bibliotecas e funções úteis para o programa
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 from Authenticate import check_password
 
-# Muda o título da página na aba do navegador
+##muda o título da página na aba do navegador
 st.set_page_config(
     page_title="Relatórios - Einstein PMRM",
     page_icon="📋",
@@ -12,7 +12,7 @@ st.set_page_config(
 )
 st.header("Programa de Monitoramento de Resistência Microbiana", divider='green')
 
-# Esconde a barra de acesso lateral durante o login do usuário
+##esconde a barra de acesso lateral durante o login do usuário
 hide_bar = """
     <style>
     [data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
@@ -25,7 +25,10 @@ hide_bar = """
     </style>
 """
 
+##condição para mostrar o conteúdo da página somente para usuários autenticados
 if check_password() == True:
+
+    ##mudança de layout da página utilizando CSS
     page_bg_img = f"""
     <style>
     [data-testid="stAppViewContainer"] > .main {{
@@ -53,17 +56,19 @@ if check_password() == True:
 
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
+
+    ##organização em colunas para melhor exibição
     col1, col2, col3 = st.columns([1, 1, 2])
 
-    # Carregar os dados do CSV
+    ##arrega os dados do CSV
     url = "https://raw.githubusercontent.com/AndersonEduardo/pbl-2023/main/sample_data_clean.csv"
     df = pd.read_csv(url)
 
-    # Converter colunas para tipo de data
+    ##onverte colunas para tipo de data
     df['dh_admissao_paciente'] = pd.to_datetime(df['dh_admissao_paciente'])
     df['dh_alta_paciente'] = pd.to_datetime(df['dh_alta_paciente'])
 
-    # Mapeamento das colunas
+    ##mapeamento das colunas que serão utilizadas no dataframe
     column_mapping = {
         'dh_admissao_paciente': 'Data de Admissão do Paciente',
         'dh_alta_paciente': 'Data de Alta do Paciente',
@@ -82,7 +87,7 @@ if check_password() == True:
         'ds_resultado_exame': 'Resultado do Exame',
     }
 
-    # Colunas específicas para filtragem
+    ##seleção das colunas específicas para filtragem
     filter_columns = [
         'ds_tipo_encontro',
         'ds_unidade_coleta',
@@ -97,13 +102,13 @@ if check_password() == True:
         'ic_crescimento_microorganismo',
     ]
 
-    # Layout da aplicação usando múltiplas colunas
+    ##organização em colunas para melhor visualização
     col1, col2, col3 = st.columns([1, 1, 2])
 
-    # Botões para seleção de período
+    ##botões para seleção de período
     periodo_opcao = col1.radio("Selecione o período:", ["30 dias", "90 dias", "6 meses", "1 ano", "Período completo"])
 
-    # Calcular o período correspondente
+    ##calcula o período correspondente aos botões criados
     if periodo_opcao == "30 dias":
         data_maxima = df['dh_admissao_paciente'].max().date()
         data_inicial = data_maxima - pd.DateOffset(days=30)
@@ -120,39 +125,40 @@ if check_password() == True:
         data_inicial = df['dh_admissao_paciente'].min().date()
         data_maxima = df['dh_admissao_paciente'].max().date()
 
-    # Adicionar filtro de período
+    ##adiciona filtro de período
     filtro_periodo = col1.date_input('Período Personalizado:', [data_inicial, data_maxima])
 
-    # Aplicar filtros ao DataFrame
+    ##aplica filtros ao dataframe
     df_filtrado = df[(df['dh_admissao_paciente'].dt.date >= filtro_periodo[0]) & (df['dh_admissao_paciente'].dt.date <= filtro_periodo[1])]
 
-    # Renomear elementos do filtro principal de acordo com o mapeamento
+    ##enomeia elementos do filtro principal de acordo com o mapeamento
     renamed_mapping = {v: k for k, v in column_mapping.items()}
     renamed_filters = [renamed_mapping.get(col, col) for col in df_filtrado.columns]
     df_filtrado.columns = renamed_filters
 
-    # Adicionar checkbox para filtragem de colunas no subfiltro
+    ##adiciona checkbox para filtragem de colunas
     filter_columns_sub = col2.multiselect("Escolha as colunas para filtragem", filter_columns, format_func=lambda x: column_mapping[x])
     
-    # Adicionar multiselect para selecionar dados dentro de cada coluna escolhida no subfiltro
+    ##adiciona uma caaixa de multiseleção para que o usuário selecionse os filtros que deseja aplicar
     selected_data = {}
     for col in filter_columns_sub:
         unique_values = df_filtrado[col].unique()
         selected_data[col] = col2.multiselect(f"Selecione {column_mapping[col]}", unique_values)
 
-    # Aplicar filtros adicionais
+    ##adiciona uma segunda caixa de multiseleção para que o usuário possa selecionar quais os dados específicos que deseja analisar
     for col, values in selected_data.items():
         if values:
             df_filtrado = df_filtrado[df_filtrado[col].isin(values)]
 
-    # Obter todos os dados que correspondem aos filtros selecionados
+    ##obtém todos os dados que correspondem aos filtros selecionados
     df_final = df_filtrado[column_mapping.keys()]
 
-    # Renomear colunas do DataFrame final de acordo com o column_mapping
+    ##renomeia colunas do dataframe final de acordo com o column_mapping
     df_final.columns = [column_mapping[col] for col in df_final.columns]
 
-    # Exibir DataFrame resultante
+    ##xibe dataframe resultante
     col3.dataframe(df_final)
-    
+
+##condição para encerrar a aplicação quando o usuário não estiver mais autenticado
 else:
     st.stop()
