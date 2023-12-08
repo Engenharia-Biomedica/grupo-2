@@ -1,8 +1,14 @@
+##importa bibliotecas que serão úteis para o funcionamento do sistema
 import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
 
+##muito similar a primeira aba de exibição do dashboard, mas ao invés de apresentar informações sobre a sensibilidade de antibioticos, apresenta a de sensibilidade de microorganismos
+
+##função para calculo da variável "delta" que será utilizada posteriormente nas st.metrics
+##o valor de delta dos microorganismos que apresentaram resistencia é dado pela quantidade de casos de resistencia numa mesma ala no período selecionado
+##já o valor de delta para os microorganismos que apresentaram sensibilidade com aumento de dose ou dose dependente foram calculados juntos e também se referem a uma mesma ala no periodo selecionado
 def calcular_delta_casos_ala_microorganismo(df_periodo_selecionado, df_periodo_anterior, microorganismo, interpretacao):
     casos_periodo_selecionado = df_periodo_selecionado[(df_periodo_selecionado['cd_interpretacao_antibiograma'] == interpretacao) & (df_periodo_selecionado['cd_sigla_microorganismo'] == microorganismo)]
     casos_periodo_anterior = df_periodo_anterior[(df_periodo_anterior['cd_interpretacao_antibiograma'] == interpretacao) & (df_periodo_anterior['cd_sigla_microorganismo'] == microorganismo)]
@@ -17,23 +23,24 @@ def calcular_delta_casos_ala_microorganismo(df_periodo_selecionado, df_periodo_a
 
     return delta_casos_ala, set(alas_com_mais_de_um_caso_selecionado)
 
-
+##função que será chamada na página principal
 def graph4():
     st.header("Sensibilidade por Microorganismos")
 
+    ##divisão em colunas para melhor visualização
     col1, col2, col3 = st.columns([1, 1, 2])
 
-    # Carregar os dados do CSV
+    ##carregar os dados do CSV
     url = "https://raw.githubusercontent.com/AndersonEduardo/pbl-2023/main/sample_data_clean.csv"
     df = pd.read_csv(url)
 
-    # Converter a coluna de datas
+    ##converte a coluna de datas
     df['dh_liberacao_exame'] = pd.to_datetime(df['dh_liberacao_exame'])
 
-    # Botões para seleção de período
+    ##botões para seleção de período
     periodo_opcao = col1.radio("2- Selecione o período:", ["30 dias", "90 dias", "6 meses", "1 ano", "Período completo"])
 
-    # Calcular o período correspondente
+    ##calcula o período correspondente aos botões criados
     if periodo_opcao == "30 dias":
         data_maxima = df['dh_liberacao_exame'].max().date()
         data_inicial = data_maxima - pd.DateOffset(days=30)
@@ -50,20 +57,20 @@ def graph4():
         data_inicial = df['dh_liberacao_exame'].min().date()
         data_maxima = df['dh_liberacao_exame'].max().date()
 
-    # Adicionar filtro de período
+    ##adiciona filtro de período
     filtro_periodo = col1.date_input('2- Selecione o período:', [data_inicial, data_maxima])
 
-    # Converter para numpy.datetime64
+    ##converte os filtros de período para numpy.datetime64, para posterior ajuste de valores de média em gráficos
     filtro_periodo = [np.datetime64(date) for date in filtro_periodo]
 
-    # Aplicar filtro de período
+    ##aplica filtro de período
     df_filtrado = df[(df['dh_liberacao_exame'] >= filtro_periodo[0]) & (df['dh_liberacao_exame'] <= filtro_periodo[1])]
 
-    # Pipeline de dados: Excluir valores nulos do gráfico, mas mostrá-los no DataFrame
+    ##pipeline de dados para excluir valores nulos do gráfico, mas mostrá-los no dataframe
     df_chart = df_filtrado.dropna(subset=['cd_sigla_microorganismo', 'cd_interpretacao_antibiograma', 'ds_ala_coleta'])
     df_chart = df_chart.replace(np.nan, 'Sem informações', regex=True)
 
-    # Adicionar filtros
+    ##caixa de seleção que adiciona filtros de microorganismos
     microorganismos_selecionados_resistencia = col2.multiselect(
         'Selecione os microorganismos:',
         df_filtrado['cd_sigla_microorganismo'].unique(),
@@ -71,9 +78,10 @@ def graph4():
         key='microorganismos_resistencia_multiselect'
     )
 
-    # Verificar se há dados para os microorganismos selecionados
+    ##erifica se há dados existentes no dataset para os microorganismos selecionados
     if not df_chart[df_chart['cd_sigla_microorganismo'].isin(microorganismos_selecionados_resistencia)].empty:
-        # Criar gráfico para a resistência aos microorganismos usando Altair
+        
+        ##cria um gráfico para a sensibilidade dos microorganismos usando a biblioteca Altair
         chart = alt.Chart(df_chart).mark_bar().encode(
             x=alt.X('cd_sigla_microorganismo:N', title='Microorganismo'),
             y=alt.Y('count():Q', title='Contagem'),
@@ -85,34 +93,38 @@ def graph4():
 
         col3.altair_chart(chart, use_container_width=True)
 
+    ##nova coluna para melhor visualização dos dados
     st.header("", divider='green')
     col4, col5, col6 = st.columns([1, 1, 2])
 
-    # Filtrar dados para o período selecionado
+    ##filtro de dados para o período selecionado e posterior aplicação a um dataframe
     df_periodo_selecionado = df_chart[(df_chart['dh_liberacao_exame'] >= filtro_periodo[0]) & (df_chart['dh_liberacao_exame'] <= filtro_periodo[1])]
 
-    # Filtrar dados para o período anterior aos 30 dias
+    ##filtra dados para o período anterior aos 30 dias
     data_final_anterior = filtro_periodo[0] - pd.DateOffset(days=1)
     data_inicial_anterior = data_final_anterior - pd.DateOffset(days=30)
     df_periodo_anterior = df_chart[(df_chart['dh_liberacao_exame'] >= data_inicial_anterior) & (df_chart['dh_liberacao_exame'] <= data_final_anterior)]
 
-    # Calcular resistência por microorganismo para o período selecionado e anterior aos 30 dias
+    ##calcula resistência por microorganismo para o período selecionado e anterior aos 30 dias
     resistencia_periodo_selecionado = df_periodo_selecionado[df_periodo_selecionado['cd_interpretacao_antibiograma'] == 'Resistente']
     resistencia_periodo_anterior = df_periodo_anterior[df_periodo_anterior['cd_interpretacao_antibiograma'] == 'Resistente']
 
-    # Calcular interpretações "Sensível Aumentando Exposição" e "Sensível Dose-Dependente" para o período selecionado e anterior aos 30 dias
+    ##contagem de interpretações "Sensível Aumentando Exposição" e "Sensível Dose-Dependente" para o período selecionado e anterior aos 30 dias
     sensivel_periodo_selecionado = df_periodo_selecionado[df_periodo_selecionado['cd_interpretacao_antibiograma'].isin(['Sensível Aumentando Exposição', 'Sensível Dose-Dependente'])]
     sensivel_periodo_anterior = df_periodo_anterior[df_periodo_anterior['cd_interpretacao_antibiograma'].isin(['Sensível Aumentando Exposição', 'Sensível Dose-Dependente'])]
 
-    # Selecionar os três microorganismos com mais resistência
+    ##seleciona os três microorganismos com mais resistência
     microorganismos_maior_resistencia = resistencia_periodo_selecionado['cd_sigla_microorganismo'].value_counts().head(3).index.tolist()
 
-    # Selecionar os três microorganismos com mais interpretações "Sensível Aumentando Exposição" e "Sensível Dose-Dependente"
+    ##seleciona os três microorganismos com mais interpretações "Sensível Aumentando Exposição" e "Sensível Dose-Dependente"
     microorganismos_maior_sensivel = sensivel_periodo_selecionado.groupby('cd_sigla_microorganismo').size().sort_values(ascending=False).head(3).index.tolist()
 
+    ##nova organização em colunas
     col4, col5, col6 = st.columns([1, 1, 2])
 
-    # Coluna 4
+    ##definição da coluna 4, nesta coluna foram implementados widgets do tipo st.metric que irão rankear os 3 microoganismos que mais apresentaram resistencia,
+    ##a quantidade de casos de resistencia e também em quantas alas ocorreram mais de uma ocorrência de resistência, podendo auxiliar na identificação de alas
+    ##infectadas por bactérias resistentes
     col4.subheader("Resistente", divider="green")
     for i, microorganismo in enumerate(microorganismos_maior_resistencia):
         delta_casos_ala, alas_selecionadas = calcular_delta_casos_ala_microorganismo(df_periodo_selecionado, df_periodo_anterior, microorganismo, 'Resistente')
@@ -123,7 +135,9 @@ def graph4():
                     )
         st.markdown(f"Ala(s): {', '.join(alas_selecionadas)} - Microorganismo: {microorganismo}")
 
-    # Coluna 5
+    ##definição da coluna 5, nesta coluna foram implementados widgets do tipo st.metric que irão rankear os 3 microorganismo que mais apresentaram sensibilidade reduzida,
+    ##e que foi necessário o aumento de dose ou se tornaram dose-dependentes, a classificação foi dada também quanto ao número de alas que apresentaram mais de um
+    ##caso de sensibilidade reduzida, e que um alto número desses casos numa mesma ala pode indicar o crescimento de uma bactéria resistente
     col5.subheader("Sensível AD/DD", divider="green")
 
     for i, microorganismo in enumerate(microorganismos_maior_sensivel):
@@ -139,15 +153,16 @@ def graph4():
                     )
         st.markdown(f"Ala(s): {', '.join(alas_selecionadas)} - Microorganismo: {microorganismo}")
 
-    # Exibir resumo no DataFrame abaixo do gráfico
+    ##dados para exibir um dataframe que sintetize as informações obtidas no gráfico
     resumo_microorganismos = df_chart.groupby(['cd_sigla_microorganismo', 'cd_interpretacao_antibiograma']).size().unstack(fill_value=0)
     resumo_microorganismos = resumo_microorganismos.reset_index()
 
-    # Renomear a coluna 'cd_sigla_microorganismo' para 'Microorganismo'
+    ##renomeia a coluna 'cd_sigla_microorganismo' para 'Microorganismo'
     resumo_microorganismos = resumo_microorganismos.rename(columns={'cd_sigla_microorganismo': 'Microorganismo'})
 
+    ##gera um dataframe com as informações mencionadas anteriormente
     col6.dataframe(resumo_microorganismos, use_container_width=True, hide_index=True)
 
-    # Adicionar informações sobre os microorganismos selecionados
+    ##informações sobre os filtros selecionados
     st.write(f"Microorganismos selecionados: {', '.join(microorganismos_selecionados_resistencia) if microorganismos_selecionados_resistencia else 'Todos'}")
     st.write(f"Período selecionado: {filtro_periodo[0]} a {filtro_periodo[1]}")
