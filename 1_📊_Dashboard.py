@@ -27,8 +27,10 @@ hide_bar= """
     </style>
 """
 
+##condição para acesso ao painel em que True signigica que a autenticação foi efetivada com sucesso
 if check_password() == True:
-    
+
+    ##modificação do layout da página em CSS
     page_bg_img = f"""
     <style>
     [data-testid="stAppViewContainer"] > .main {{
@@ -53,9 +55,12 @@ if check_password() == True:
     right: 2rem;
     }}
     """
-    
     st.markdown(page_bg_img, unsafe_allow_html=True)
+
+    ##estado inicial da sidebar
     st.session_state.sbstate = 'expanded'
+
+    ##divisão da página principal em abas dentro da mesma página que chamarão pelas funções de cada aba definida nos outros arquivos da pasta raiz
     tab1, tab2, tab3, tab4 = st.tabs(["Sensibilidade por Antibióticos", "Sensibilidade por Microorganismos", "Infecções por Ala Hospitalar", "Internações por Microorganismo"])
     with tab1:
         graph2()
@@ -65,6 +70,8 @@ if check_password() == True:
         graph3()
     with tab4:
         graph1()
+
+##condição para encerrar a autenticação do usuário e voltar à página de login
 else:
     st.stop()
 
